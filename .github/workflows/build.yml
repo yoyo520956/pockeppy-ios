@@ -73,6 +73,9 @@ jobs:
           FWDIR="$SRCDIR/Apple/iOS/Frameworks/arm64-iphoneos"
           cp -r "$FWDIR/Python.framework" "$OUT/"
           cp -r "$SRCDIR/Include" "$OUT/include-python3.14"
+          # pyconfig.h 是 configure 生成的（不在源码 Include/），补进头文件目录
+          [ -f "$SRCDIR/pyconfig.h" ] && cp "$SRCDIR/pyconfig.h" "$OUT/include-python3.14/" && echo "pyconfig.h 已补" || echo "!! 源码树无 pyconfig.h"
+          ls "$OUT/include-python3.14/pyconfig.h" 2>/dev/null
           cd "$OUT" && zip -qr python-embed.zip Python.framework include-python3.14
           du -sh python-embed.zip
           find Python.framework -maxdepth 1
