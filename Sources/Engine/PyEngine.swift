@@ -27,10 +27,9 @@ final class PyEngine {
         booted = true
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
-            guard let home = Bundle.main.url(forResource: "pyhome", withExtension: nil) else {
-                return // 无 pyhome → 保持 fallback 态
-            }
-            let ok = ppy_init(home.path)
+            // CPython iOS framework 模式：Python3.framework 随 bundle 携带，
+            // 解释器自动在 main bundle 里定位 stdlib；home 传 nil 不干预。
+            let ok = ppy_init(nil)
             if ok {
                 self.versionText = String(cString: ppy_version())
                 DispatchQueue.main.async {
