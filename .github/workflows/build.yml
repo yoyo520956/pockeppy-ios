@@ -50,14 +50,11 @@ jobs:
           echo "=== framework scan ==="
           ls "$FWDIR" 2>/dev/null
           # 3.14 iOS：framework 独立 target，逐个探测构建
-          for T in framework sharedframework sharedshared; do
-            make -n "$T" > /dev/null 2>&1 && echo "target $T 存在"
-          done
-          make -j4 framework > fw.log 2>&1 || make -j4 sharedframework > fw.log 2>&1 || true
-          grep -v "^\[ " fw.log | tail -15
-          echo "=== 再扫 ==="
-          find "$(pwd)/Apple" -maxdepth 5 -name '*.framework' 2>/dev/null
-          find "$(pwd)/build" -maxdepth 4 -name '*.framework' 2>/dev/null
+          echo "=== Makefile framework targets ==="
+          grep -nEi "^[a-z_]*framework[a-z_]*\b|^framework" Makefile | head -10
+          make -qp 2>/dev/null | grep -iE "^[a-z_]*framework" | sort -u | head
+          echo "=== install targets ==="
+          grep -nE "^install[a-z_]*:" Makefile | head -10
           [ -d "$FWDIR/Python3.framework" ] || { echo "!! framework 仍缺失"; exit 1; }
           echo "framework found:"; find "$FWDIR/Python3.framework" -maxdepth 1
 
