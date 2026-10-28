@@ -47,7 +47,7 @@ jobs:
           grep -q "aarch64-apple-ios" Makefile | head -1 || head -5 Makefile
           OUTD="$GITHUB_WORKSPACE/out"
           mkdir -p "$OUTD/Apple/iOS/Frameworks/arm64-iphoneos"
-          make -j4 install DESTDIR="$OUTD" > build.log 2>&1 || (tail -40 build.log; exit 1)
+          make -j4 install DESTDIR="$OUTD/" > build.log 2>&1 || (tail -40 build.log; exit 1)
           find "$OUTD" -maxdepth 4 -name 'Python3*' | head -5
 
       - name: 收集嵌入件（framework）
