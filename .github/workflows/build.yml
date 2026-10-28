@@ -45,25 +45,21 @@ jobs:
             --with-build-python="$BUILD_PY" \
             > configure.log 2>&1 || { tail -30 configure.log; exit 1; }
           grep -q "aarch64-apple-ios" Makefile | head -1 || head -5 Makefile
-          OUTD="$GITHUB_WORKSPACE/out"
-          mkdir -p "$OUTD/Apple/iOS/Frameworks/arm64-iphoneos"
-          make -j4 install DESTDIR="$OUTD/" > build.log 2>&1 || (tail -40 build.log; exit 1)
-          find "$OUTD" -maxdepth 4 -name 'Python3*' | head -5
+          make -j4 install > build.log 2>&1 || { tail -40 build.log; }
+          FWDIR="$(pwd)/Apple/iOS/Frameworks/arm64-iphoneos"
+          [ -d "$FWDIR/Python3.framework" ] || { echo "!! framework 缺失"; find Apple -maxdepth 4 2>/dev/null; exit 1; }
+          echo "framework found:"; find "$FWDIR/Python3.framework" -maxdepth 1
 
       - name: 收集嵌入件（framework）
         run: |
           OUT="$GITHUB_WORKSPACE/out"
-          FW=$(find "$OUT" -maxdepth 2 -name 'Python3*' -type d | head -1)
-          echo "framework: $FW"
-          find "$FW" -maxdepth 1 | head -20
-          H=$(find "$OUT" -name 'pyport.h' | head -1)
-          echo "pyport.h: $H"
-          # embed.zip：framework 整包（静态二进制 + stdlib .py）+ 头文件
-          rm -f python-embed.zip
-          cp -r "$FW" "$OUT/Python3.framework" 2>/dev/null || true
-          if [ -n "$H" ]; then mkdir -p "$OUT/embed-hdrs" && cp -r "$(dirname "$H")" "$OUT/embed-hdrs/" ; fi
-          cd "$OUT" && zip -qr python-embed.zip Python3.framework embed-hdrs 2>/dev/null || zip -qr python-embed.zip Python3.framework
+          rm -rf "$OUT" && mkdir -p "$OUT"
+          FWDIR="$(pwd)/Apple/iOS/Frameworks/arm64-iphoneos"
+          cp -r "$FWDIR/Python3.framework" "$OUT/"
+          cp -r Include "$OUT/include-python3.14"
+          cd "$OUT" && zip -qr python-embed.zip Python3.framework include-python3.14
           du -sh python-embed.zip
+          find Python3.framework -maxdepth 1
 
       - uses: actions/upload-artifact@v4
         with:
