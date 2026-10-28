@@ -1,131 +1,129 @@
-import Foundation
 import SwiftUI
+import UIKit
 
-/// 全局应用状态
+@MainActor
 final class AppState: ObservableObject {
-    @Published var code: String
-    @Published var currentFileName: String?
-    @Published var lastOutput: String
+    // MARK: 文件 / 编辑
+    @Published var openFile: FileItem?
+    @Published var code: String = "print('Hello, PocketPy!')"
+    @Published private(set) var codeRev: Int = 0
+
+    // MARK: 运行
+    @Published var lastOutput: String = ""
     @Published var isRunning: Bool = false
-    @Published var history: [RunRecord]
-    @Published var showToast: Bool = false
-    @Published var toastMessage: String = ""
+    @Published var history: [RunRecord] = []
+
+    // MARK: AI
+    @Published var aiConfig: AIConfig
 
     let documentsDir: URL
-    let engine = PyEngine.shared
+    private let store = HistoryStore()
 
     init() {
-        let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        documentsDir = docs
-        let stored = HistoryStore.shared.load()
-        self.history = stored
-        self.lastOutput = "〔PocketPy〕就绪。写点代码然后点「运行」吧。\n（v0.1 预览版：引擎 v0.2 携带 CPython 后真跑代码）"
-        let starter = Self.defaultStarter()
-        self.code = starter
-        self.currentFileName = nil
+        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        self.documentsDir = dir
+        self.history = store.load()
+        self.aiConfig = AppState.loadAIConfig()
     }
 
-    private static func defaultStarter() -> String {
-        """
-        # PocketPy 示例
-import sys, platform, math
+    var fileName: String { openFile?.name ?? "untitled.py" }
 
-def fib(n):
-    a, b = 0, 1
-    for _ in range(n):
-        a, b = b, a + b
-    return a
+    // MARK: - 引擎状态透传
+    var isEngineReady: Bool { PyEngine.shared.isEngineReady }
+    var engineStatusText: String { PyEngine.shared.engineStatusText }
 
-print("Python 就绪，前10个斐波那契：")
-print([fib(i) for i in range(10)])
-print("圆周率 ≈", round(math.pi, 10))
-"""
+    // MARK: - 编辑同步（WebKit 输入 → 状态；状态 → WebKit 走 codeRev）
+    func syncEditorText(_ t: String) {
+        guard t != code else { return }
+        code = t
+    }
+    func externalSet(_ t: String, fileName: String? = nil) {
+        code = t
+        codeRev += 1
+        if let n = fileName { openFile = FileItem(name: n, url: documentsDir.appendingPathComponent(n)) }
     }
 
-    /// 弹出轻提示（2.5 秒自动消失）
-    func toast(_ message: String) {
-        toastMessage = message
-        showToast = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
-            self?.showToast = false
-        }
+    // MARK: - 文件
+    func startNew() {
+        openFile = nil
+        let n = "untitled-\(Date().timeIntervalSince1970.prefix(4)).py"
+        externalSet("# \(n)\n\ndef main():\n    print('Hello, PocketPy!')\n\nif __name__ == '__main__':\n    main()\n", fileName: n)
     }
 
-    func saveCode(to fileName: String) -> URL? {
-        let url = documentsDir.appendingPathComponent(fileName)
-        do {
-            try code.write(to: url, atomically: true, encoding: .utf8)
-            currentFileName = fileName
-            return url
-        } catch {
-            toast("保存失败：\(error.localizedDescription)")
-            return nil
-        }
+    func importSnippet(_ t: Snippet) {
+        externalSet(t.code, fileName: t.name.lowercased().replacingOccurrences(of: " ", with: "-") + ".py")
     }
 
-    func loadFile(_ url: URL) {
-        do {
-            code = try String(contentsOf: url, encoding: .utf8)
-            currentFileName = url.lastPathComponent
-            toast("已打开 \(url.lastPathComponent)")
-        } catch {
-            toast("打开失败：\(error.localizedDescription)")
-        }
+    func copyCode() {
+        UIPasteboard.general.string = code
     }
 
-    func listFiles() -> [URL] {
-        let exts: Set<String> = ["py", "txt", "md", "json"]
-        let items = (try? FileManager.default.contentsOfDirectory(
-            at: documentsDir, includingPropertiesForKeys: [.isRegularFileKey])) ?? []
-        return items
-            .filter { exts.contains($0.pathExtension.lowercased()) }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+    func saveCurrent() {
+        let name = openFile?.name ?? "untitled.py"
+        try? code.write(to: documentsDir.appendingPathComponent(name), atomically: true, encoding: .utf8)
+        openFile = FileItem(name: name, url: documentsDir.appendingPathComponent(name))
     }
 
-    func deleteFile(_ url: URL) {
-        do {
-            try FileManager.default.removeItem(at: url)
-            if currentFileName == url.lastPathComponent { currentFileName = nil }
-            toast("已删除 \(url.lastPathComponent)")
-        } catch {
-            toast("删除失败")
-        }
+    func deleteFile(_ f: FileItem) {
+        try? FileManager.default.removeItem(at: f.url)
     }
 
-    func newFile(named name: String) -> Bool {
-        let url = documentsDir.appendingPathComponent(name)
-        guard !FileManager.default.fileExists(atPath: url.path) else {
-            toast("文件已存在：\(name)"); return false
-        }
-        do {
-            try "# \(name)\n".write(to: url, atomically: true, encoding: .utf8)
-            loadFile(url)
-            return true
-        } catch {
-            toast("创建失败"); return false
-        }
+    func resetHistory() {
+        history.removeAll()
+        store.save(history)
     }
 
-    func runCode() {
+    // MARK: - 运行
+    func run() {
         guard !isRunning else { return }
         isRunning = true
-        let snapshot = code
-        let name = currentFileName ?? "未命名"
-        engine.run(code: snapshot) { [weak self] result in
+        lastOutput = "⏳ 运行中…"
+        PyEngine.shared.run(code: code) { [weak self] result in
             guard let self else { return }
             self.isRunning = false
             self.lastOutput = result.output
-            let record = RunRecord(id: UUID(), fileName: name,
-                                   codePreview: String(snapshot.prefix(120)),
-                                   output: String(result.output.prefix(2000)),
-                                   date: Date(), success: result.success,
-                                   durationMs: result.durationMs)
-            HistoryStore.shared.add(record)
-            self.history = [record] + self.history
+            let rec = RunRecord(fileName: self.openFile?.name ?? "编辑器代码",
+                                 codePreview: String(self.code.prefix(120)),
+                                 output: String(result.output.prefix(500)),
+                                 success: result.success,
+                                 durationMs: result.durationMs)
+            self.history.insert(rec, at: 0)
+            if self.history.count > 200 { self.history = Array(self.history.prefix(200)) }
+            self.store.save(self.history)
         }
     }
 
-    func clearConsole() {
-        lastOutput = "（已清空）"
+    // MARK: - AI 配置（UserDefaults 持久化）
+    /// 预设只改 endpoint/model，保留已填的 API Key
+    func applyAIPreset(_ name: String) {
+        guard name != "自定义" else { return }
+        var cfg = AIConfig.preset(name)
+        cfg.apiKey = aiConfig.apiKey
+        aiConfig = cfg
+        AppState.saveAIConfig(aiConfig)
+    }
+
+    static func loadAIConfig() -> AIConfig {
+        let d = UserDefaults.standard
+        return AIConfig(baseUrl: d.string(forKey: "ppy.ai.base") ?? "",
+                        model: d.string(forKey: "ppy.ai.model") ?? "",
+                        apiKey: d.string(forKey: "ppy.ai.key") ?? "",
+                        maxTokens: d.object(forKey: "ppy.ai.max") as? Int ?? 2048)
+    }
+    static func saveAIConfig(_ c: AIConfig) {
+        let d = UserDefaults.standard
+        d.set(c.baseUrl, forKey: "ppy.ai.base")
+        d.set(c.model, forKey: "ppy.ai.model")
+        d.set(c.apiKey, forKey: "ppy.ai.key")
+        d.set(c.maxTokens, forKey: "ppy.ai.max")
+    }
+}
+
+struct FileItem: Identifiable, Hashable {
+    let name: String
+    let url: URL
+    var id: String { url.lastPathComponent }
+    var content: String {
+        (try? String(contentsOf: url, encoding: .utf8)) ?? ""
     }
 }

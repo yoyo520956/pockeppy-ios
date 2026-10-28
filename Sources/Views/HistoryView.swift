@@ -32,9 +32,7 @@ struct HistoryView: View {
             .toolbar {
                 if !app.history.isEmpty {
                     Button("清空") {
-                        app.history = []
-                        HistoryStore.shared.clear()
-                        app.toast("历史已清空")
+                        app.resetHistory()
                     }
                 }
             }

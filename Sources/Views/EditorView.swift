@@ -2,78 +2,101 @@ import SwiftUI
 
 struct EditorView: View {
     @EnvironmentObject var app: AppState
-    @FocusState private var focused: Bool
 
     var body: some View {
-        VStack(spacing: 0) {
-            // 文件名行
-            HStack {
-                Image(systemName: "chevron.left.forwardslash.circle")
-                    .foregroundStyle(.orange)
-                Text(app.currentFileName ?? "untitled.py")
-                    .font(.subheadline.weight(.medium))
-                    .lineLimit(1)
-                Spacer()
-                Button {
-                    let url = app.saveCode(to: app.currentFileName ?? "untitled.py")
-                    if url != nil { app.toast("已保存 \(url!.lastPathComponent)") }
-                } label: {
-                    Label("保存", systemImage: "square.and.arrow.down")
-                }
-                .font(.footnote)
+        NavigationStack {
+            VStack(spacing: 0) {
+                toolbar
+                EditorRepresentable(app: app)
+                Divider()
+                ConsoleView(app: app)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(.thinMaterial)
-
-            // 代码编辑区
-            TextEditor(text: $app.code)
-                .font(.system(size: 14, design: .monospaced))
-                .autocorrectionDisabled(true)
-                .textInputAutocapitalization(.never)
-                .keyboardType(.asciiCapable)
-                .focused($focused)
-                .scrollContentBackground(.hidden)
-                .padding(.horizontal, 10)
-                .frame(maxHeight: .infinity)
-                .background(Color.black.opacity(0.25))
-
-            // 工具栏
-            HStack(spacing: 10) {
-                Button {
-                    app.runCode()
-                } label: {
-                    Label(app.isRunning ? "运行中…" : "运行", systemImage: app.isRunning ? "hourglass" : "play.fill")
-                        .font(.subheadline.weight(.semibold))
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.orange)
-                .disabled(app.isRunning)
-
-                Button {
-                    app.code = ""; focused = true
-                } label: {
-                    Label("清空", systemImage: "trash")
-                        .font(.subheadline)
-                }
-                .buttonStyle(.bordered)
-
-                Spacer()
-
-                Button {
-                    app.clearConsole()
-                } label: {
-                    Image(systemName: "terminal")
-                        .font(.subheadline)
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(.thinMaterial)
-
-            // 控制台输出
-            ConsoleView(text: app.lastOutput, running: app.isRunning)
-                .frame(height: 160)
+            .navigationTitle(app.fileName)
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
+
+    private var toolbar: some View {
+        HStack(spacing: 4) {
+            Button { app.run() } label: {
+                Label("运行", systemImage: "play.fill")
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.green)
+            .controlSize(.small)
+            if app.isRunning { ProgressView().controlSize(.small) }
+
+            Button { app.saveCurrent() } label: {
+                Label("保存", systemImage: "square.and.arrow.down")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
+            Menu {
+                ForEach(Snippet.all) { t in
+                    Button { app.importSnippet(t) } label: {
+                        Label(t.name, systemImage: "wrench.and.screwdriver")
+                    }
+                }
+            } label: {
+                Label("模板", systemImage: "square.stack.3d.up")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
+            Button { app.startNew() } label: {
+                Label("新建", systemImage: "plus.circle")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
+            Spacer()
+
+            ShareLink(item: "import …\n\n" + app.code) {
+                Label("分享", systemImage: "square.and.arrow.up")
+            }
+            .controlSize(.small)
+
+            Button { app.copyCode() } label: {
+                Label("复制", systemImage: "doc.on.doc")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
+            NavigationLink { AIAssistantView() } label: {
+                Label("AI", systemImage: "sparkles")
+            }
+            .buttonStyle(.bordered)
+            .tint(.purple)
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(.bar)
+    }
+}
+
+/// SwiftUI ↔ WebKit 编辑器桥（外部改动经 codeRev 驱动，输入方向不回写避免循环）
+struct EditorRepresentable: UIViewRepresentable {
+    @ObservedObject var app: AppState
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> CodeEditorWebView {
+        let w = CodeEditorWebView()
+        w.onContentChange = { txt in app.syncEditorText(txt) }
+        w.onReady = { }
+        context.coordinator.lastRev = app.codeRev
+        w.setAll(app.code, fileName: app.fileName)
+        return w
+    }
+
+    func updateUIView(_ uiView: CodeEditorWebView, context: Context) {
+        if context.coordinator.lastRev != app.codeRev {
+            context.coordinator.lastRev = app.codeRev
+            uiView.setAll(app.code, fileName: app.fileName)
+        }
+    }
+
+    final class Coordinator { var lastRev = -1 }
 }

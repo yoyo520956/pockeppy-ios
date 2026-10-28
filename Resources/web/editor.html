@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<style>
+:root{color-scheme:dark;--bg:#0d1117;--panel:#11161d;--txt:#e6edf3;--dim:#54606e;--line:#21262d;--kw:#ff7b72;--str:#a5d6ff;--cm:#8b949e;--num:#79c0ff;--dec:#d2a8ff;--fn:#ffa657}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--txt);overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif}
+#wrap{display:flex;height:100%;flex-direction:column}
+#bar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line);font-size:12px;color:var(--dim)}
+#bar .file{color:var(--txt);font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#code{flex:1;display:flex;position:relative}
+#gutter{position:sticky;left:0;padding:8px 6px 8px 8px;background:var(--panel);color:var(--dim);font-family:ui-monospace,Menlo,monospace;font-size:13px;line-height:1.55;text-align:right;user-select:none;white-space:pre;min-width:38px;overflow:hidden}
+#stage{position:relative;flex:1;overflow:hidden}
+#hl,#in{position:absolute;inset:0;margin:0;padding:8px 8px 40px;font-family:ui-monospace,Menlo,monospace;font-size:13px;line-height:1.55;white-space:pre;overflow-wrap:normal;overflow:auto}
+#hl{pointer-events:none;color:var(--txt)}
+#in{background:transparent;color:transparent;caret-color:#f0f6fc;resize:none;border:0;outline:0;width:100%;height:100%;z-index:2}
+#in::selection{background:rgba(47,124,203,.35)}
+#in::selection{background:rgba(56,132,255,.35);color:#fff}
+#in::selection{background:rgba(56,132,255,.35)}
+.tk-kw{color:var(--kw)} .tk-str{color:var(--str)} .tk-cm{color:var(--cm);font-style:italic} .tk-num{color:var(--num)} .tk-dec{color:var(--dec)} .tk-fn{color:var(--fn)}
+#status{position:absolute;bottom:0;left:0;right:0;display:flex;justify-content:space-between;padding:4px 12px;background:rgba(17,22,29,.92);border-top:1px solid var(--line);font-size:11px;color:var(--dim);font-family:ui-monospace,Menlo,monospace}
+</style>
+</head>
+<body>
+<div id="wrap">
+<div id="bar"><span class="file" id="fname">untitled.py</span><span id="lang">Python 3</span></div>
+<div id="code">
+<div id="gutter">1</div>
+<div id="stage"><pre id="hl"></pre><textarea id="in" wrap="off" autocapitalize="none" autocorrect="off" spellcheck="false" autocomplete="off"></textarea>
+<div id="status"><span id="pos">行 1 列 1</span><span id="cnt">0 字符</span></div></div>
+</div>
+</div>
+<script>
+(function(){
+var IN=document.getElementById('in'),HL=document.getElementById('hl'),GUT=document.getElementById('gutter'),POS=document.getElementById('pos'),CNT=document.getElementById('cnt');
+var KWS={def:1,class:1,return:1,if:1,elif:1,else:1,for:1,while:1,in:1,not:1,and:1,or:1,import:1,from:1,as:1,with:1,try:1,except:1,finally:1,raise:1,pass:1,break:1,continue:1,lambda:1,yield:1,global:1,nonlocal:1,del:1,assert:1,is:1,async:1,await:1,True:1,False:1,None:1};
+function esc(s){return s.split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;')}
+function hl(src){
+var s=esc(src);
+s=s.replace(/(#[^\n]*)/g,'§C$1§');
+s=s.replace(/("""[\s\S]*?"""|'''[\s\S]*?'''|"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*')/g,'§S$1§');
+s=s.replace(/(^|\s)(@[\w.]+)/gm,'$1§D$2§');
+s=s.replace(/\b(\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?\d+)?j?)\b/g,'§N$1§');
+s=s.replace(/\b([A-Za-z_]\w*)(?=\s*\()/g,'§F$1§');
+s=s.replace(/\b(def|class|return|if|elif|else|for|while|in|not|and|or|import|from|as|with|try|except|finally|raise|pass|break|continue|lambda|yield|global|nonlocal|del|assert|is|async|await|True|False|None)\b/g,'§K$1§');
+s=s.split('§K').join('<span class="tk-kw">').split('§F').join('<span class="tk-fn">').split('§D').join('<span class="tk-dec">').split('§N').join('<span class="tk-num">').split('§C').join('<span class="tk-cm">').split('§S').join('<span class="tk-str">');
+return s.split('<').join('&lt;');
+}
+function render(){
+HL.innerHTML=hl(IN.value)+'\n';
+var n=IN.value.split('\n').length;
+GUT.textContent=Array.from({length:n},function(_,i){return i+1}).join('\n');
+sync();
+}
+function sync(){IN.scrollTop=IN.scrollHeight<IN.clientHeight?0:IN.scrollTop;HL.scrollTop=IN.scrollTop;HL.scrollLeft=IN.scrollLeft;GUT.scrollTop=IN.scrollTop;}
+IN.addEventListener('input',function(){render();post('change');});
+IN.addEventListener('scroll',sync);
+function post(t,x){try{window.webkit.messageHandlers.code.postMessage(JSON.stringify({type:t,text:x||IN.value}));}catch(e){}}
+function posUpdate(){var v=IN.value.slice(0,IN.selectionStart);var ln=v.split('\n').length;POS.textContent='行 '+ln+' 列 '+(v.length-v.lastIndexOf('\n'));CNT.textContent=IN.value.length+' 字符';}
+IN.addEventListener('keyup',posUpdate);IN.addEventListener('click',posUpdate);
+window.setAll=function(txt){IN.value=(txt||'');render();posUpdate();HL.scrollTop=0;IN.scrollTop=0;};
+window.getAll=function(){return IN.value;};
+window.setFileName=function(n){document.getElementById('fname').textContent=n||'untitled.py';};
+post('ready');
+})();
+</script>
+</body>
+</html>

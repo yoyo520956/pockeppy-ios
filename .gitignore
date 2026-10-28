@@ -7,3 +7,5 @@ dist/
 archive.log
 PocketPy.xcodeproj/
 PythonEmbed/*.a
+PythonEmbed/
+Resources/pyhome/

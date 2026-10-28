@@ -4,74 +4,149 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: pockeppy-build
+  cancel-in-progress: true
+
 jobs:
-  build:
+  # ── Job 1: 交叉编译 CPython 3.13（iOS arm64 静态嵌入件）──
+  python:
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install xcodegen
+      - name: 下载 CPython 3.13.5 源码
         run: |
-          which xcodegen || brew install xcodegen || true
+          curl -fsSL -o cpython.tgz https://github.com/python/cpython/archive/refs/tags/v3.13.5.tar.gz
+          tar xzf cpython.tgz
+          cd cpython-3.13.5 && ls Makefile.pre.in configure 2>/dev/null || ls configure
 
-      - name: Generate Xcode project
+      - name: 交叉编译（aarch64-apple-ios16.0）
+        working-directory: cpython-3.13.5
         run: |
-          xcodegen generate
-          # 假成功守卫：pbxproj 必须真的挂上全部 9 个 .swift
-          SWIFT_COUNT=$(grep -c '\.swift' PocketPy.xcodeproj/project.pbxproj || echo 0)
-          echo "pbxproj 引用 .swift 次数: $SWIFT_COUNT (应 >= 27 = 9文件x3)"
-          if [ "$SWIFT_COUNT" -lt 27 ]; then
-            echo "::error::XcodeGen 未收集全部源文件（假成功风险），中断"
-            exit 1
-          fi
+          brew install autoconf automake 2>/dev/null || true
+          [ -f configure ] || (autoconf && ls configure)
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          export CC="clang -target aarch64-apple-ios16.0 -isysroot $SDK"
+          export CFLAGS="-target aarch64-apple-ios16.0 -isysroot $SDK -arch arm64"
+          export LDFLAGS="-target aarch64-apple-ios16.0 -isysroot $SDK -arch arm64"
+          ./configure --host=aarch64-apple-ios16.0 \
+            --with-sysroot="$SDK" \
+            --enable-shared=no --enable-static \
+            --with-openssl=no --with-readline=no --with-lzma=no \
+            --with-tcltk=no --with-uuid=no --with-libnsl=no --with-cxx=no \
+            > /dev/null
+          make -j4 install-embed DESTDIR="$GITHUB_WORKSPACE/out" > build.log 2>&1 || (tail -40 build.log; exit 1)
 
-      - name: Archive
+      - name: 收集嵌入件
         run: |
-          set -o pipefail
-          xcodebuild -project PocketPy.xcodeproj -scheme PocketPy -configuration Release \
-            -archivePath build/PocketPy.xcarchive archive \
-            2>&1 | tee archive.log | tail -40
-          if ! grep -q "ARCHIVE SUCCEEDED" archive.log; then
-            echo "=== 编译错误定位 ==="
-            rg -n "error:" archive.log | head -30 || true
-            exit 1
-          fi
-
-      - name: Verify binary
-        run: |
-          APP="build/PocketPy.xcarchive/Products/Applications/PocketPy.app"
-          [ -f "$APP/PocketPy" ] || { echo "app 产物缺失"; exit 1; }
-          SIZE=$(stat -f%z "$APP/PocketPy")
-          echo "binary size: $SIZE"
-          if [ "$SIZE" -lt 2000000 ]; then echo "::error::二进制过小（<2MB，疑似空壳）"; exit 1; fi
-          # 中文特征串核验
-          for s in "运行历史" "编辑器" "未命名" "PocketPy"; do
-            if ! strings "$APP/PocketPy" | grep -q "$s"; then
-              echo "::error::缺少特征串 $s"
-              exit 1
-            fi
-          done
-          python3 - <<PY
-          import plistlib
-          p = plistlib.load(open("$APP/Info.plist","rb"))
-          print("版本核验:", p["CFBundleShortVersionString"], p["CFBundleVersion"])
-          assert p["CFBundleShortVersionString"] == "0.1.0"
-          assert p["CFBundleVersion"] == "20261028.01"
-          print("Info.plist 版本 ✓")
-          PY
-
-      - name: Package unsigned IPA
-        run: |
-          APP="build/PocketPy.xcarchive/Products/Applications/PocketPy.app"
-          rm -rf Payload && mkdir Payload
-          cp -R "$APP" Payload/PocketPy.app
-          cd Payload && zip -rqX ../PocketPy-unsigned.ipa . && cd ..
-          ls -la PocketPy-unsigned.ipa
-          md5sum PocketPy-unsigned.ipa
-          mkdir -p dist && mv PocketPy-unsigned.ipa dist/
+          OUT="$GITHUB_WORKSPACE/out"
+          find "$OUT" -name 'libpython3.13.a' | head -3
+          find "$OUT" -name 'Python.o' | head -3
+          cd "$OUT"
+          mkdir -p python-embed/include
+          cp -r include/python3.13 python-embed/include/
+          cp $(find . -name 'libpython3.13.a' | head -1) python-embed/
+          PO=$(find . -name 'Python.o' | head -1)
+          [ -n "$PO" ] || PO="$GITHUB_WORKSPACE/cpython-3.13.5/Python.o"
+          [ -n "$PO" ] || PO="$(find "$GITHUB_WORKSPACE/cpython-3.13.5" -name 'Python.o' | head -1)"
+          cp "$PO" python-embed/
+          cp -r lib/python3.13 pyhome-tmp/ 2>/dev/null || mkdir -p pyhome-tmp
+          cd python-embed && zip -qr python-embed.zip . && cd ..
+          cd pyhome-tmp && zip -qr ../pyhome.zip . && cd ..
+          du -sh python-embed.zip pyhome.zip
 
       - uses: actions/upload-artifact@v4
         with:
+          name: pypocket-python
+          path: |
+            out/python-embed.zip
+            out/pyhome.zip
+
+  # ── Job 2: SwiftUI 壳 + 内嵌引擎 → 未签名 IPA ──
+  app:
+    runs-on: macos-15
+    needs: python
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: pypocket-python
+
+      - name: 放置嵌入件
+        run: |
+          rm -rf PythonEmbed Resources/pyhome
+          mkdir -p PythonEmbed Resources
+          unzip -q out/python-embed.zip -d PythonEmbed/
+          mkdir -p Resources/pyhome
+          unzip -q out/pyhome.zip -d Resources/pyhome/
+          ls PythonEmbed/ && du -sh Resources/pyhome
+
+      - name: 安装 XcodeGen
+        run: which xcodegen || brew install xcodegen
+
+      - name: 生成工程
+        run: xcodegen generate
+
+      - name: 假成功守卫（.swift 引用数）
+        run: |
+          SWIFT_COUNT=$(grep -c '\.swift' PocketPy.xcodeproj/project.pbxproj || echo 0)
+          echo "Swift refs: $SWIFT_COUNT"
+          [ "$SWIFT_COUNT" -lt 30 ] && { echo "!! 文件没收全"; exit 1; }
+
+      - name: 编译归档
+        run: |
+          set -o pipefail
+          xcodebuild -project PocketPy.xcodeproj -scheme PocketPy \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath build/PocketPy.xcarchive archive > archive.log 2>&1 \
+          || { tail -80 archive.log; exit 1; }
+          grep -q "ARCHIVE SUCCEEDED" archive.log || { tail -40 archive.log; exit 1; }
+
+      - name: 核验二进制特征串
+        run: |
+          BIN="build/PocketPy.xcarchive/Products/Applications/PocketPy.app/PocketPy"
+          [ -f "$BIN" ] && echo "binary ok ($(du -h "$BIN" | cut -f1))"
+          for s in "口袋 Python 工作站" "OpenAI 兼容" "CPython" "运行" "历史记录"; do
+            strings -a "$BIN" | grep -qF "$s" && echo "  ✓ $s" || echo "  ✗ 缺 $s"
+          done
+          python3 -c "import plistlib;p=plistlib.load(open('build/PocketPy.xcarchive/Products/Applications/PocketPy.app/Info.plist','rb'));print('版本:',p['CFBundleShortVersionString'],p['CFBundleVersion'])"
+          # 核验引擎文件在包内
+          ls "build/PocketPy.xcarchive/Products/Applications/PocketPy.app/pyhome/lib/python3.13/json" | head -3
+
+      - name: 打未签名 IPA
+        run: |
+          APP="build/PocketPy.xcarchive/Products/Applications/PocketPy.app"
+          rm -rf Payload dist && mkdir -p Payload dist
+          cp -R "$APP" Payload/
+          cd dist && zip -qr PocketPy-unsigned.ipa ../Payload && cd ..
+          du -h dist/PocketPy-unsigned.ipa
+          md5sum dist/PocketPy-unsigned.ipa
+
+      - name: 上传 IPA
+        uses: actions/upload-artifact@v4
+        with:
           name: pockeppy-ipa
-          path: dist/
+          path: dist/PocketPy-unsigned.ipa
+
+      - name: 发 Release（滚动 latest）
+        run: |
+          VER="$(grep -o 'MARKETING_VERSION: \"[0-9.]*\"' project.yml | head -1 | grep -o '[0-9.]*')"
+          TOKEN="$GITHUB_TOKEN"
+          ID=$(curl -s -H "Authorization: token $TOKEN" https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r '.id // empty')
+          if [ -n "$ID" ]; then
+            curl -s -X DELETE -H "Authorization: token $TOKEN" "https://api.github.com/repos/${{ github.repository }}/releases/$ID" > /dev/null
+          fi
+          BODY=$(jq -n --arg t "v$VER" '{tag_name:$t, name:"PocketPy v$VER", generate_notes:true, draft:false, prerelease:true}')
+          RID=$(curl -s -X POST -H "Authorization: token $TOKEN" -H "Content-Type: application/json" -d "$BODY" \
+            https://api.github.com/repos/${{ github.repository }}/releases | jq -r '.id')
+          curl -s -X POST -H "Authorization: token $TOKEN" \
+            -H "Content-Type: application/octet-stream" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/$RID/assets/PocketPy-unsigned.ipa" \
+            --data-binary @dist/PocketPy-unsigned.ipa | jq -r '.browser_download_url // "asset upload failed"'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

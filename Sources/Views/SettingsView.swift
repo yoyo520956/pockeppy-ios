@@ -2,74 +2,122 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var app: AppState
+    @State private var base = ""
+    @State private var model = ""
+    @State private var key = ""
+    @State private var testing = false
+    @State private var testResult = ""
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("引擎状态") {
-                    InfoRow(title: "Python 引擎", value: app.engine.isEngineReady() ? "已就绪" : "v0.2 携带")
-                    InfoRow(title: "历史条数", value: "\(app.history.count)")
-                    HStack {
-                        Text("沙盒目录")
-                        Spacer()
-                        Text(app.documentsDir.path)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
+        List {
+            Section("Python 引擎") {
+                InfoRow(title: "CPython", value: app.engineStatusText)
+                Button("立即尝试初始化引擎") {
+                    PyEngine.shared.bootstrap()
                 }
-                Section("维护") {
-                    Button("清空运行历史") {
-                        app.history = []
-                        HistoryStore.shared.clear()
-                        app.toast("历史已清空")
+                .font(.caption)
+                .disabled(app.isEngineReady)
+            }
+
+            Section("AI 接口（OpenAI 兼容）") {
+                TextField("API Endpoint", text: $base, prompt: Text("https://api.moonshot.cn/v1"))
+                    .font(.caption)
+                    .keyboardType(.URL)
+                TextField("模型名", text: $model, prompt: Text("moonshot-v1-8k / gpt-4o-mini / qwen-plus"))
+                    .font(.caption)
+                SecureField("API Key（仅存本机 UserDefaults）", text: $key)
+                    .font(.caption)
+                HStack(spacing: 12) {
+                    Menu {
+                        ForEach(["Kimi", "百炼", "OpenAI", "OpenRouter"], id: \.self) { p in
+                            Button(p) {
+                                let c = AIConfig.preset(p)
+                                base = c.baseUrl; model = c.model
+                            }
+                        }
+                    } label: {
+                        Label("快速预设", systemImage: "wand.and.stars")
                     }
-                    .foregroundStyle(.red)
-                    Button("重置示例代码") {
-                        app.code = Self.sample()
-                        app.toast("已恢复示例代码")
-                    }
+                    Button("保存并测试") { saveAndTest() }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(testing)
+                    if testing { ProgressView().controlSize(.small) }
                 }
-                Section("关于") {
-                    InfoRow(title: "版本", value: Self.appVersion())
-                    InfoRow(title: "设备", value: ProcessInfo.processInfo.systemName + " " + ProcessInfo.processInfo.systemVersion)
-                    Text("PocketPy · 口袋 Python 工作站\n对标 Python IDE 1.7.5 功能面，无付费墙，功能全开。\n路线图：v0.2 CPython 嵌入 → v0.3 补全/终端/SSH → v0.4 AI/小组件")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                .controlSize(.small)
+                if !testResult.isEmpty {
+                    Text(testResult)
+                        .font(.caption2)
+                        .foregroundStyle(testResult.hasPrefix("✓") ? .green : .red)
                 }
             }
-            .navigationTitle("设置")
+
+            Section("数据") {
+                InfoRow(title: "沙盒目录", value: app.documentsDir.path)
+                InfoRow(title: "历史记录", value: "\(app.history.count) 条")
+                Button("清空历史") {
+                    app.resetHistory()
+                }
+                .font(.caption)
+                .foregroundStyle(.red)
+                .disabled(app.history.isEmpty)
+            }
+
+            Section("关于") {
+                InfoRow(title: "版本", value: Self.appVersion())
+                InfoRow(title: "口袋 Python 工作站", value: "对标 Python IDE · 无付费墙")
+            }
+        }
+        .navigationTitle("设置")
+        .onAppear {
+            base = app.aiConfig.baseUrl
+            model = app.aiConfig.model
+            key = app.aiConfig.apiKey
         }
     }
 
-    /// 稳定的 键值行（绕开 LabeledContent 泛型推导坑）
-    private struct InfoRow: View {
-        let title: String
-        let value: String
-        var body: some View {
-            HStack {
-                Text(title)
-                Spacer()
-                Text(value)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+    private func saveAndTest() {
+        var cfg = app.aiConfig
+        cfg.baseUrl = base
+        cfg.model = model
+        cfg.apiKey = key
+        app.aiConfig = cfg
+        AppState.saveAIConfig(cfg)
+        testResult = ""
+        testing = true
+        AIClient().chat(cfg, messages: [AIClient.Msg(role: "user", content: "只回复两个字：正常")]) { result in
+            DispatchQueue.main.async {
+                testing = false
+                switch result {
+                case .success(let t):
+                    testResult = "✓ 连接成功：\(String(t.prefix(40)))"
+                case .failure(let e):
+                    testResult = "✗ \(e.localizedDescription)"
+                }
             }
         }
     }
 
     static func appVersion() -> String {
-        let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-        let b = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
-        return "v\(v) (\(b))"
+        let b = Bundle.main.infoDictionary
+        let m = (b?["CFBundleShortVersionString"] as? String) ?? "0.1"
+        let p = (b?["CFBundleVersion"] as? String) ?? "?"
+        return "\(m) (\(p))"
     }
+}
 
-    static func sample() -> String {
-        return """
-        # PocketPy 示例
-        import math
-        print("Hello, PocketPy!")
-        print("2^20 =", 2 ** 20)
-        """
+private struct InfoRow: View {
+    let title: String
+    let value: String
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title)
+            Spacer()
+            Text(value)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.trailing)
+                .lineLimit(2)
+        }
     }
 }
