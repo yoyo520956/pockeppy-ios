@@ -7,8 +7,8 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section("引擎状态") {
-                    LabeledContent("Python 引擎", value: app.engine.isEngineReady() ? "已就绪" : "v0.2 携带")
-                    LabeledContent("历史条数", value: "\(app.history.count)")
+                    InfoRow(title: "Python 引擎", value: app.engine.isEngineReady() ? "已就绪" : "v0.2 携带")
+                    InfoRow(title: "历史条数", value: "\(app.history.count)")
                     HStack {
                         Text("沙盒目录")
                         Spacer()
@@ -31,14 +31,30 @@ struct SettingsView: View {
                     }
                 }
                 Section("关于") {
-                    LabeledContent("版本", value: Self.appVersion())
-                    LabeledContent("设备", value: ProcessInfo.processInfo.systemName + " " + ProcessInfo.processInfo.systemVersion)
+                    InfoRow(title: "版本", value: Self.appVersion())
+                    InfoRow(title: "设备", value: ProcessInfo.processInfo.systemName + " " + ProcessInfo.processInfo.systemVersion)
                     Text("PocketPy · 口袋 Python 工作站\n对标 Python IDE 1.7.5 功能面，无付费墙，功能全开。\n路线图：v0.2 CPython 嵌入 → v0.3 补全/终端/SSH → v0.4 AI/小组件")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("设置")
+        }
+    }
+
+    /// 稳定的 键值行（绕开 LabeledContent 泛型推导坑）
+    private struct InfoRow: View {
+        let title: String
+        let value: String
+        var body: some View {
+            HStack {
+                Text(title)
+                Spacer()
+                Text(value)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
         }
     }
 
@@ -51,9 +67,9 @@ struct SettingsView: View {
     static func sample() -> String {
         return """
         # PocketPy 示例
-import math
-print("Hello, PocketPy!")
-print("2^20 =", 2 ** 20)
+        import math
+        print("Hello, PocketPy!")
+        print("2^20 =", 2 ** 20)
         """
     }
 }

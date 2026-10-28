@@ -24,58 +24,22 @@ final class PyEngine {
     func run(code: String, completion: @escaping (RunResult) -> Void) {
         let start = Date()
         let py = pythonURL()
-        guard let python = py else {
-            let msg = "〔PocketPy〕Python 引擎尚未随包携带（v0.2 将嵌入 CPython 3.13）。\n当前可正常使用：编辑器 / 文件管理 / 运行历史 / 设置。\n代码预览：\n\n\(code.prefix(400))"
+        if py == nil {
+            // v0.1 未携带引擎 → 友好占位（v0.2 嵌入 CPython 后此分支消失，改进程内执行）
+            let msg = "〔PocketPy〕Python 引擎尚未随包携带（v0.2 将嵌入 CPython 3.13，进程内真跑代码）。\n当前可正常使用：编辑器 / 文件管理 / 运行历史 / 设置。\n\n代码预览：\n\(String(code.prefix(400)))"
             DispatchQueue.main.async {
                 completion(RunResult(output: msg, success: false,
                                       durationMs: Int(Date().timeIntervalSince(start) * 1000)))
             }
             return
         }
-        // 把用户代码写入临时文件，交给 python 解释器执行
-        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("pockeppy_run\(UUID().uuidString).py")
-        do {
-            try code.write(to: tmp, atomically: true, encoding: .utf8)
-        } catch {
-            DispatchQueue.main.async {
-                completion(RunResult(output: "无法写入临时文件：\(error)", success: false,
-                                      durationMs: Int(Date().timeIntervalSince(start) * 1000)))
-            }
-            return
-        }
-        let proc = Process()
-        proc.executableURL = python
-        proc.arguments = ["-u", tmp.path]
-        let outPipe = Pipe(); let errPipe = Pipe()
-        proc.standardOutput = outPipe; proc.standardError = errPipe
-        var env = ProcessInfo.processInfo.environment
-        env["PYTHONUNBUFFERED"] = "1"
-        proc.environment = env
-        do {
-            try proc.run()
-        } catch {
-            DispatchQueue.main.async {
-                completion(RunResult(output: "引擎启动失败：\(error)", success: false,
-                                      durationMs: Int(Date().timeIntervalSince(start) * 1000)))
-            }
-            return
-        }
-        // 注意：Process 回调内不能同步 wait，这里用读至 EOF 的简单方式
-        DispatchQueue.global(qos: .userInitiated).async {
-            let stdoutData = outPipe.fileHandleForReading.readDataToEndOfFile()
-            proc.waitUntilExit()
-            let stderrData = errPipe.fileHandleForReading.readDataToEndOfFile()
-            let so = String(data: stdoutData, encoding: .utf8) ?? ""
-            let se = String(data: stderrData, encoding: .utf8) ?? ""
-            try? FileManager.default.removeItem(at: tmp)
-            var combined = so
-            if !se.isEmpty { combined += (combined.isEmpty ? "" : "\n") + se }
-            if combined.isEmpty { combined = "（无输出）" }
-            let success = proc.terminationStatus == 0
-            let dur = Int(Date().timeIntervalSince(start) * 1000)
-            DispatchQueue.main.async {
-                completion(RunResult(output: combined, success: success, durationMs: dur))
-            }
+        // 注意：iOS 没有 Foundation.Process（macOS 专属），不允许从 App 起外部进程。
+        // v0.2 起引擎切换为内嵌 CPython（libpython 静态链接 + Py_Initialize，进程内执行）。
+        // 该分支为前向兼容桩：若 bundle 内出现 python 可执行文件也走内嵌引擎。
+        let note = "〔PocketPy〕检测到 bundle 内 python 可执行文件，但 iOS 不允许从 App 派生外部进程（App Store 3.2.2 + 平台限制）。\nv0.2 将以内嵌 CPython 方式在进程内执行你的代码。\n\n代码预览：\n\(String(code.prefix(400)))"
+        DispatchQueue.main.async {
+            completion(RunResult(output: note, success: false,
+                                  durationMs: Int(Date().timeIntervalSince(start) * 1000)))
         }
     }
 
