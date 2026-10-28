@@ -48,7 +48,9 @@ final class PyEngine {
         proc.arguments = ["-u", tmp.path]
         let outPipe = Pipe(); let errPipe = Pipe()
         proc.standardOutput = outPipe; proc.standardError = errPipe
-        proc.environment = (processEnvironment as [String: String]) + ["PYTHONUNBUFFERED": "1"]
+        var env = ProcessInfo.processInfo.environment
+        env["PYTHONUNBUFFERED"] = "1"
+        proc.environment = env
         do {
             try proc.run()
         } catch {
@@ -77,10 +79,4 @@ final class PyEngine {
         }
     }
 
-    private var processEnvironment: [String: String] {
-        var env: [String: String] = [:]
-        let p = ProcessInfo.processInfo.environment
-        for (k, v) in p { env[k] = v }
-        return env
-    }
 }

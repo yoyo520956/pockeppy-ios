@@ -9,8 +9,14 @@ struct SettingsView: View {
                 Section("引擎状态") {
                     LabeledContent("Python 引擎", value: app.engine.isEngineReady() ? "已就绪" : "v0.2 携带")
                     LabeledContent("历史条数", value: "\(app.history.count)")
-                    LabeledContent("沙盒目录", value: app.documentsDir.path)
-                        .font(.caption)
+                    HStack {
+                        Text("沙盒目录")
+                        Spacer()
+                        Text(app.documentsDir.path)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                 }
                 Section("维护") {
                     Button("清空运行历史") {
