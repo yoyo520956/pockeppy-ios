@@ -12,9 +12,10 @@ final class CodeEditorWebView: UIView, WKNavigationDelegate, WKScriptMessageHand
     override init(frame: CGRect) {
         let cfg = WKWebViewConfiguration()
         cfg.userContentController = contentCtrl
+        // let 存储属性必须在 super.init 前赋值
+        web = WKWebView(frame: .zero, configuration: cfg)
         super.init(frame: frame)
         contentCtrl.add(self, name: "code")
-        web = WKWebView(frame: .zero, configuration: cfg)
         web.navigationDelegate = self
         web.uiDelegate = self
         web.isOpaque = false
