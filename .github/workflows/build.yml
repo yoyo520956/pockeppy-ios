@@ -41,7 +41,7 @@ jobs:
           export PATH="$PWD:$PATH"
           BUILD_PY=$(command -v python3 || command -v python3.14 || command -v python3.13)
           ./configure --host=aarch64-apple-ios16.0 --build=arm64-apple-darwin \
-            --enable-framework --with-openssl=no --with-readline=no \
+            --enable-framework \
             --with-build-python="$BUILD_PY" \
             > configure.log 2>&1 || { tail -30 configure.log; exit 1; }
           grep -q "aarch64-apple-ios" Makefile | head -1 || head -5 Makefile
