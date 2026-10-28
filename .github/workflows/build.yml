@@ -40,7 +40,7 @@ jobs:
           chmod +x ./arm64-apple-ios-cpp
           cat > ./arm64-apple-ios-ar <<'WRAP2'
           #!/bin/sh
-          exec ar --target aarch64-apple-ios "$@"
+          exec ar "$@"
           WRAP2
           chmod +x ./arm64-apple-ios-ar
           export PATH="$PWD:$PATH"
