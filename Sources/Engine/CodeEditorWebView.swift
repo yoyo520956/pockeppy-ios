@@ -4,14 +4,14 @@ import WebKit
 /// WebKit 代码编辑器：语法高亮 + 行号 + 与 SwiftUI 状态双向同步
 final class CodeEditorWebView: UIView, WKNavigationDelegate, WKScriptMessageHandler, WKUIDelegate {
     private let web: WKWebView
-    private let contentCtrl = WKContentController()
+    private let contentCtrl = WKUserContentController()
     var onContentChange: ((String) -> Void)?
     var onReady: (() -> Void)?
     private var pendingText: String = ""
 
     override init(frame: CGRect) {
         let cfg = WKWebViewConfiguration()
-        cfg.contentController = contentCtrl
+        cfg.userContentController = contentCtrl
         super.init(frame: frame)
         contentCtrl.add(self, name: "code")
         web = WKWebView(frame: .zero, configuration: cfg)
@@ -44,7 +44,7 @@ final class CodeEditorWebView: UIView, WKNavigationDelegate, WKScriptMessageHand
     }
 
     // MARK: - JS → Swift
-    func userContentController(_ ucc: WKUserContentController, didReceive message: WKUserContentMessage) {
+    func userContentController(_ ucc: WKUserContentController, didReceive message: WKScriptMessage) {
         guard let body = message.body as? String,
               let data = body.data(using: .utf8),
               let dict = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return }
