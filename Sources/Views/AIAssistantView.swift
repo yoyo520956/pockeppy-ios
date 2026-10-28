@@ -38,7 +38,7 @@ struct AIAssistantView: View {
                     .padding(12)
                 }
                 .onChange(of: messages.count) { _ in
-                    proxy.scrollTo(messages.last?.id ?? "loading", anchor: .bottom)
+                    proxy.scrollTo(messages.last?.id ?? UUID(), anchor: .bottom)
                 }
             }
             HStack(spacing: 8) {
