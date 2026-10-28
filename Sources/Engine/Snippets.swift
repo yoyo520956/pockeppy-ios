@@ -8,7 +8,7 @@ struct Snippet: Identifiable {
     let code: String
 }
 
-enum Snippet {
+enum Snippets {
     static let all: [Snippet] = [
         Snippet(id: 0, name: "HTTP 请求", desc: "urllib 标准库 GET/POST", code: """
             # -*- coding: utf-8 -*-
