@@ -29,7 +29,8 @@ final class PyEngine {
             guard let self else { return }
             // CPython iOS framework 模式：Python.framework 随 bundle 携带，
             // 解释器自动在 main bundle 里定位 stdlib；home 传 nil 不干预。
-            let ok = ppy_init(nil)
+            let home = Bundle.main.bundlePath + "/lib"
+            let ok = home.withCString { ppy_init($0) }
             if ok {
                 self.versionText = String(cString: ppy_version())
                 DispatchQueue.main.async {
