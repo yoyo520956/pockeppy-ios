@@ -1,0 +1,9 @@
+.git/
+build/
+Payload/
+dist/
+*.ipa
+.DS_Store
+archive.log
+PocketPy.xcodeproj/
+PythonEmbed/*.a
