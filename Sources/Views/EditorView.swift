@@ -80,6 +80,8 @@ struct EditorView: View {
 struct EditorRepresentable: UIViewRepresentable {
     @ObservedObject var app: AppState
 
+    init(app: AppState) { self.app = app }
+
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIView(context: Context) -> CodeEditorWebView {
