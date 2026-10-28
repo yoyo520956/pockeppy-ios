@@ -46,7 +46,7 @@ final class AppState: ObservableObject {
     // MARK: - 文件
     func startNew() {
         openFile = nil
-        let n = "untitled-\(Date().timeIntervalSince1970.prefix(4)).py"
+        let n = "untitled-\(String(Int(Date().timeIntervalSince1970)).suffix(4)).py"
         externalSet("# \(n)\n\ndef main():\n    print('Hello, PocketPy!')\n\nif __name__ == '__main__':\n    main()\n", fileName: n)
     }
 
