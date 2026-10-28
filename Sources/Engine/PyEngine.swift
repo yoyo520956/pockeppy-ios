@@ -58,7 +58,7 @@ final class PyEngine {
             }
             var out = ""
             var ok = false
-            if let data = cbuf.data(using: .utf8),
+            if let data = String(cString: cbuf).data(using: .utf8),
                let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
                 var acc = obj["stdout"] as? String ?? ""
                 if let e = obj["stderr"] as? String, !e.isEmpty {
