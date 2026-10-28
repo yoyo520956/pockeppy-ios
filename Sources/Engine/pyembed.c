@@ -11,10 +11,7 @@ bool ppy_init(const char *homePath) {
     }
     PyStatus status;
     PyConfig config;
-    status = PyConfig_InitPythonConfig(&config);
-    if (PyStatus_Exception(status)) {
-        return false;
-    }
+    PyConfig_InitPythonConfig(&config);   // 3.14 返回 void
     config.isolated = 1;                    // 忽略 PYTHON* 环境变量
     config.install_signal_handlers = 0;     // iOS 不能装信号处理器
     config.write_bytecode = 0;              // 沙盒只读，不写 pyc
