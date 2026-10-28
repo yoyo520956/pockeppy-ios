@@ -64,9 +64,10 @@ jobs:
         run: |
           OUT="$GITHUB_WORKSPACE/out"
           rm -rf "$OUT" && mkdir -p "$OUT"
-          FWDIR="$(pwd)/Apple/iOS/Frameworks/arm64-iphoneos"
+          SRCDIR="$GITHUB_WORKSPACE/cpython-3.14.0"
+          FWDIR="$SRCDIR/Apple/iOS/Frameworks/arm64-iphoneos"
           cp -r "$FWDIR/Python.framework" "$OUT/"
-          cp -r Include "$OUT/include-python3.14"
+          cp -r "$SRCDIR/Include" "$OUT/include-python3.14"
           cd "$OUT" && zip -qr python-embed.zip Python.framework include-python3.14
           du -sh python-embed.zip
           find Python.framework -maxdepth 1
