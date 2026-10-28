@@ -37,7 +37,7 @@ struct FilesView: View {
         }
         .swipeActions {
             Button(role: .destructive) {
-                if let f = allFiles.first(where: { $0 == url }) { app.deleteFile(f) }
+                app.deleteFile(FileItem(name: url.lastPathComponent, url: url))
                 refresh += 1
             } label: { Label("删除", systemImage: "trash") }
         }
