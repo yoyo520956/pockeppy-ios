@@ -47,7 +47,10 @@ jobs:
           grep -q "aarch64-apple-ios" Makefile | head -1 || head -5 Makefile
           make -j4 install > build.log 2>&1 || { tail -40 build.log; }
           FWDIR="$(pwd)/Apple/iOS/Frameworks/arm64-iphoneos"
-          [ -d "$FWDIR/Python3.framework" ] || { echo "!! framework 缺失"; find Apple -maxdepth 4 2>/dev/null; exit 1; }
+          echo "=== framework scan ==="
+          find "$(pwd)/Apple" -name '*Python3*' -maxdepth 6 2>/dev/null | head
+          ls "$FWDIR" 2>/dev/null
+          [ -d "$FWDIR/Python3.framework" ] || { echo "!! framework 缺失"; find . -name 'Python3' 2>/dev/null | head; exit 1; }
           echo "framework found:"; find "$FWDIR/Python3.framework" -maxdepth 1
 
       - name: 收集嵌入件（framework）
