@@ -76,7 +76,11 @@ jobs:
           # pyconfig.h 是 configure 生成的（不在源码 Include/），补进头文件目录
           [ -f "$SRCDIR/pyconfig.h" ] && cp "$SRCDIR/pyconfig.h" "$OUT/include-python3.14/" && echo "pyconfig.h 已补" || echo "!! 源码树无 pyconfig.h"
           ls "$OUT/include-python3.14/pyconfig.h" 2>/dev/null
-          cd "$OUT" && zip -qr python-embed.zip Python.framework include-python3.14
+          # 纯 Python stdlib（frameworkinstall 不装 .py）
+          mkdir -p "$OUT/lib/python3.14"
+          cp -r "$SRCDIR/Lib/"* "$OUT/lib/python3.14/" 2>/dev/null || echo "!! Lib 拷贝失败"
+          ls "$OUT/lib/python3.14" | head -5
+          cd "$OUT" && zip -qr python-embed.zip Python.framework include-python3.14 lib
           du -sh python-embed.zip
           find Python.framework -maxdepth 1
 
