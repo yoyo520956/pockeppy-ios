@@ -19,7 +19,7 @@ targets:
         type: resource
       - path: Resources/web
         type: resource
-      - path: PythonEmbed/Python3.framework
+      - path: PythonEmbed/Python.framework
         type: resource
     info:
       path: Resources/Info.plist
@@ -41,7 +41,7 @@ targets:
         GCC_C_LANGUAGE_STANDARD: "gnu17"
         HEADER_SEARCH_PATHS: "$(PROJECT_DIR)/PythonEmbed/include-python3.14 $(PROJECT_DIR)/Sources/Engine"
         FRAMEWORK_SEARCH_PATHS: "$(PROJECT_DIR)/PythonEmbed"
-        OTHER_LDFLAGS: "$(PROJECT_DIR)/PythonEmbed/Python3.framework/Python3"
+        OTHER_LDFLAGS: "$(PROJECT_DIR)/PythonEmbed/Python.framework/Python3"
         SWIFT_OBJC_BRIDGING_HEADER: "Sources/Engine/pyembed.h"
         ENABLE_USER_SCRIPT_SANDBOXING: "NO"
         DYLIB_INSTALL_NAME_DIR: "@rpath"
