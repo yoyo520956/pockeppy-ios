@@ -19,6 +19,8 @@ targets:
         type: resource
       - path: Resources/web
         type: folder
+      - path: PythonEmbed/lib
+        type: folder
     dependencies:
       - framework: PythonEmbed/Python.framework
         embed: true
