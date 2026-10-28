@@ -110,7 +110,7 @@ jobs:
         run: |
           SWIFT_COUNT=$(grep -c '\.swift' PocketPy.xcodeproj/project.pbxproj || echo 0)
           echo "Swift refs: $SWIFT_COUNT"
-          [ "$SWIFT_COUNT" -lt 30 ] && { echo "!! 文件没收全"; exit 1; }
+          if [ "$SWIFT_COUNT" -lt 30 ]; then echo "!! 文件没收全"; exit 1; fi
 
       - name: 编译归档
         run: |
