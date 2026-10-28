@@ -50,24 +50,21 @@ jobs:
           echo "=== framework scan ==="
           ls "$FWDIR" 2>/dev/null
           # 3.14 iOS：framework 独立 target，逐个探测构建
-          echo "=== Makefile framework targets ==="
-          grep -nEi "^[a-z_]*framework[a-z_]*\b|^framework" Makefile | head -10
-          make -qp 2>/dev/null | grep -iE "^[a-z_]*framework" | sort -u | head
-          echo "=== install targets ==="
-          grep -nE "^install[a-z_]*:" Makefile | head -10
-          [ -d "$FWDIR/Python3.framework" ] || { echo "!! framework 仍缺失"; exit 1; }
-          echo "framework found:"; find "$FWDIR/Python3.framework" -maxdepth 1
+          make -j4 frameworkinstall > fwinstall.log 2>&1 || { tail -30 fwinstall.log; }
+          [ -d "$FWDIR/Python.framework" ] || { echo "!! framework 仍缺失"; find . -maxdepth 6 -name 'Python.framework' 2>/dev/null; exit 1; }
+          echo "framework found:"; find "$FWDIR/Python.framework" -maxdepth 1
+          find "$FWDIR/Python.framework" -maxdepth 2 -type d | head -15
 
       - name: 收集嵌入件（framework）
         run: |
           OUT="$GITHUB_WORKSPACE/out"
           rm -rf "$OUT" && mkdir -p "$OUT"
           FWDIR="$(pwd)/Apple/iOS/Frameworks/arm64-iphoneos"
-          cp -r "$FWDIR/Python3.framework" "$OUT/"
+          cp -r "$FWDIR/Python.framework" "$OUT/"
           cp -r Include "$OUT/include-python3.14"
-          cd "$OUT" && zip -qr python-embed.zip Python3.framework include-python3.14
+          cd "$OUT" && zip -qr python-embed.zip Python.framework include-python3.14
           du -sh python-embed.zip
-          find Python3.framework -maxdepth 1
+          find Python.framework -maxdepth 1
 
       - uses: actions/upload-artifact@v4
         with:
@@ -124,7 +121,7 @@ jobs:
           done
           python3 -c "import plistlib;p=plistlib.load(open('build/PocketPy.xcarchive/Products/Applications/PocketPy.app/Info.plist','rb'));print('版本:',p['CFBundleShortVersionString'],p['CFBundleVersion'])"
           # 核验引擎文件在包内
-          ls "build/PocketPy.xcarchive/Products/Applications/PocketPy.app/Python3.framework" | head -5
+          ls "build/PocketPy.xcarchive/Products/Applications/PocketPy.app/Python.framework" | head -5
 
       - name: 打未签名 IPA
         run: |
