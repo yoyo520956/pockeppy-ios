@@ -33,7 +33,7 @@ struct EditorView: View {
             .controlSize(.small)
 
             Menu {
-                ForEach(Snippet.all) { t in
+                ForEach(Snippets.all) { t in
                     Button { app.importSnippet(t) } label: {
                         Label(t.name, systemImage: "wrench.and.screwdriver")
                     }
