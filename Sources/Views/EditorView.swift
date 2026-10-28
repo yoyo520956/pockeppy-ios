@@ -9,7 +9,7 @@ struct EditorView: View {
                 toolbar
                 EditorRepresentable(app: app)
                 Divider()
-                ConsoleView(app: app)
+                ConsoleView(text: app.lastOutput, running: app.isRunning)
             }
             .navigationTitle(app.fileName)
             .navigationBarTitleDisplayMode(.inline)
