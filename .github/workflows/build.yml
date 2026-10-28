@@ -28,9 +28,17 @@ jobs:
           brew install autoconf automake 2>/dev/null || true
           [ -f configure ] || (autoconf && ls configure)
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          export IOS_SDK="$SDK"
           export CC="clang -target aarch64-apple-ios16.0 -isysroot $SDK"
           export CFLAGS="-target aarch64-apple-ios16.0 -isysroot $SDK -arch arm64"
           export LDFLAGS="-target aarch64-apple-ios16.0 -isysroot $SDK -arch arm64"
+          # CPython 3.14 iOS 需要 host-triplet cpp 包装器
+          cat > ./arm64-apple-ios-cpp <<'WRAPPER'
+          #!/bin/sh
+          exec clang -E -target aarch64-apple-ios16.0 -isysroot "$IOS_SDK" "$@"
+          WRAPPER
+          chmod +x ./arm64-apple-ios-cpp
+          export PATH="$PWD:$PATH"
           BUILD_PY=$(command -v python3 || command -v python3.14 || command -v python3.13)
           ./configure --host=aarch64-apple-ios16.0 --build=arm64-apple-darwin \
             --enable-framework --with-openssl=no --with-readline=no \
