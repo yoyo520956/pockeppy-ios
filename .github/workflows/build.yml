@@ -16,14 +16,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 下载 CPython 3.13.5 源码
+      - name: 下载 CPython 3.14.0 源码
         run: |
-          curl -fsSL -o cpython.tgz https://github.com/python/cpython/archive/refs/tags/v3.13.5.tar.gz
+          curl -fsSL -o cpython.tgz https://github.com/python/cpython/archive/refs/tags/v3.14.0.tar.gz
           tar xzf cpython.tgz
-          cd cpython-3.13.5 && ls Makefile.pre.in configure 2>/dev/null || ls configure
+          cd cpython-3.14.0 && ls Makefile.pre.in configure 2>/dev/null || ls configure
 
       - name: 交叉编译（aarch64-apple-ios16.0）
-        working-directory: cpython-3.13.5
+        working-directory: cpython-3.14.0
         run: |
           brew install autoconf automake 2>/dev/null || true
           [ -f configure ] || (autoconf && ls configure)
@@ -42,17 +42,17 @@ jobs:
       - name: 收集嵌入件
         run: |
           OUT="$GITHUB_WORKSPACE/out"
-          find "$OUT" -name 'libpython3.13.a' | head -3
+          find "$OUT" -name 'libpython3.14.a' | head -3
           find "$OUT" -name 'Python.o' | head -3
           cd "$OUT"
           mkdir -p python-embed/include
-          cp -r include/python3.13 python-embed/include/
-          cp $(find . -name 'libpython3.13.a' | head -1) python-embed/
+          cp -r include/python3.14 python-embed/include/
+          cp $(find . -name 'libpython3.14.a' | head -1) python-embed/
           PO=$(find . -name 'Python.o' | head -1)
-          [ -n "$PO" ] || PO="$GITHUB_WORKSPACE/cpython-3.13.5/Python.o"
-          [ -n "$PO" ] || PO="$(find "$GITHUB_WORKSPACE/cpython-3.13.5" -name 'Python.o' | head -1)"
+          [ -n "$PO" ] || PO="$GITHUB_WORKSPACE/cpython-3.14.0/Python.o"
+          [ -n "$PO" ] || PO="$(find "$GITHUB_WORKSPACE/cpython-3.14.0" -name 'Python.o' | head -1)"
           cp "$PO" python-embed/
-          cp -r lib/python3.13 pyhome-tmp/ 2>/dev/null || mkdir -p pyhome-tmp
+          cp -r lib/python3.14 pyhome-tmp/ 2>/dev/null || mkdir -p pyhome-tmp
           cd python-embed && zip -qr python-embed.zip . && cd ..
           cd pyhome-tmp && zip -qr ../pyhome.zip . && cd ..
           du -sh python-embed.zip pyhome.zip
@@ -115,7 +115,7 @@ jobs:
           done
           python3 -c "import plistlib;p=plistlib.load(open('build/PocketPy.xcarchive/Products/Applications/PocketPy.app/Info.plist','rb'));print('版本:',p['CFBundleShortVersionString'],p['CFBundleVersion'])"
           # 核验引擎文件在包内
-          ls "build/PocketPy.xcarchive/Products/Applications/PocketPy.app/pyhome/lib/python3.13/json" | head -3
+          ls "build/PocketPy.xcarchive/Products/Applications/PocketPy.app/pyhome/lib/python3.14/json" | head -3
 
       - name: 打未签名 IPA
         run: |
