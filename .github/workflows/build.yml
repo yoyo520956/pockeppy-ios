@@ -94,7 +94,10 @@ jobs:
         run: |
           rm -rf PythonEmbed
           mkdir -p PythonEmbed
-          unzip -q out/python-embed.zip -d PythonEmbed/
+          ZIP=$(find "$GITHUB_WORKSPACE" -name 'python-embed.zip' | head -1)
+          echo "zip path: $ZIP"
+          [ -n "$ZIP" ] || { echo "!! 未找到 python-embed.zip"; find . -name '*.zip' | head; exit 1; }
+          unzip -q "$ZIP" -d PythonEmbed/
           ls PythonEmbed/ && find PythonEmbed -maxdepth 2 | head -15
 
       - name: 安装 XcodeGen
