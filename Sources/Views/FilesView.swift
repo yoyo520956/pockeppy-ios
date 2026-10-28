@@ -15,6 +15,34 @@ struct FilesView: View {
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
 
+    @ViewBuilder
+    private func fileRow(_ url: URL, allFiles: [URL]) -> some View {
+        Button {
+            let content = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+            app.openFile = FileItem(name: url.lastPathComponent, url: url)
+            app.externalSet(content, fileName: url.lastPathComponent)
+        } label: {
+            HStack {
+                Image(systemName: "chevron.left.forwardslash.chevron.right")
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(url.lastPathComponent)
+                    if let size = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int {
+                        Text("\(size) B · UTF-8")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .swipeActions {
+            Button(role: .destructive) {
+                if let f = allFiles.first(where: { $0 == url }) { app.deleteFile(f) }
+                refresh += 1
+            } label: { Label("删除", systemImage: "trash") }
+        }
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -26,30 +54,7 @@ struct FilesView: View {
                         .frame(maxWidth: .infinity)
                 }
                 ForEach(files, id: \.self) { url in
-                    Button {
-                        let content = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-                        app.openFile = FileItem(name: url.lastPathComponent, url: url)
-                        app.externalSet(content, fileName: url.lastPathComponent)
-                    } label: {
-                        HStack {
-                            Image(systemName: "chevron.left.forwardslash.chevron.right")
-                                .foregroundStyle(.orange)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(url.lastPathComponent)
-                                if let size = try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int {
-                                    Text("\(size) B · UTF-8")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
-                    .swipeActions {
-                        Button(role: .destructive) {
-                            if let f = files.first(where: { $0 == url }) { app.deleteFile(f) }
-                            refresh += 1
-                        } label: { Label("删除", systemImage: "trash") }
-                    }
+                    fileRow(url, allFiles: files)
                 }
             }
             .navigationTitle("脚本文件")
