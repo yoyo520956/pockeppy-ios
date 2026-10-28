@@ -9,20 +9,28 @@ bool ppy_init(const char *homePath) {
         g_main = PyImport_ImportModule("__main__");
         return g_main != NULL;
     }
+    PyStatus status;
     PyConfig config;
-    if (PyConfig_InitPythonConfig(&config) != 0) {
+    status = PyConfig_InitPythonConfig(&config);
+    if (PyStatus_Exception(status)) {
         return false;
     }
-    config.isolated = 1;                       // 忽略 PYTHON* 环境变量
-    config.install_signal_handlers = 0;
-    config.run.install_signal_handlers = 0;    // iOS 不能装信号处理器
-    config.allow_incomplete_shutdown = 1;
-    config.run.write_bytecode = 0;            // 沙盒只读，不写 pyc
-    if (homePath != NULL && PyConfig_SetString(&config, &config.home, homePath) != 0) {
-        PyConfig_Clear(&config);
-        return false;
+    config.isolated = 1;                    // 忽略 PYTHON* 环境变量
+    config.install_signal_handlers = 0;     // iOS 不能装信号处理器
+    config.write_bytecode = 0;              // 沙盒只读，不写 pyc
+    if (homePath != NULL) {
+        wchar_t *whome = Py_DecodeLocale(homePath, NULL);
+        if (whome != NULL) {
+            status = PyConfig_SetString(&config, &config.home, whome);
+            PyMem_RawFree(whome);
+            if (PyStatus_Exception(status)) {
+                PyConfig_Clear(&config);
+                return false;
+            }
+        }
     }
-    if (Py_InitializeFromConfig(&config) != 0) {
+    status = Py_InitializeFromConfig(&config);
+    if (PyStatus_Exception(status)) {
         PyConfig_Clear(&config);
         return false;
     }
