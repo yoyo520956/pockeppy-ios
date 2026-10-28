@@ -31,8 +31,10 @@ jobs:
           export CC="clang -target aarch64-apple-ios16.0 -isysroot $SDK"
           export CFLAGS="-target aarch64-apple-ios16.0 -isysroot $SDK -arch arm64"
           export LDFLAGS="-target aarch64-apple-ios16.0 -isysroot $SDK -arch arm64"
+          BUILD_PY=$(command -v python3 || command -v python3.11 || command -v python3.9)
           ./configure --host=aarch64-apple-ios16.0 --build=arm64-apple-darwin \
             --enable-shared=no --with-openssl=no --with-readline=no \
+            --with-build-python="$BUILD_PY" \
             > configure.log 2>&1 || { tail -30 configure.log; exit 1; }
           grep -q "platform aarch64-apple-ios" Makefile || tail -20 Makefile | head -5
           make -j4 install-embed DESTDIR="$GITHUB_WORKSPACE/out" > build.log 2>&1 || (tail -40 build.log; exit 1)
