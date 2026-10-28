@@ -25,13 +25,10 @@ final class AIClient {
     /// 一次 chat completion（OpenAI 兼容 /chat/completions）
     func chat(_ config: AIConfig, messages: [Msg], completion: @escaping (Result<String, Error>) -> Void) {
         let base = config.baseUrl.hasSuffix("/") ? config.baseUrl : config.baseUrl + "/"
-        guard var comps = URLComponents(string: base) else {
+        guard let baseURL = URL(string: base) else {
             completion(.failure(AIError.badURL)); return
         }
-        comps.appendPathComponent("chat/completions")
-        guard let url = comps.url else {
-            completion(.failure(AIError.badURL)); return
-        }
+        let url = baseURL.appendingPathComponent("chat/completions")
         post(url: url, config: config, messages: messages, completion: completion)
     }
 
