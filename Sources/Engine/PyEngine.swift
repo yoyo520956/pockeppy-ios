@@ -1,6 +1,6 @@
 import Foundation
 
-/// Python 引擎：内嵌 CPython 3.13（libpython 静态链接 + pyhome stdlib）
+/// Python 引擎：内嵌 CPython 3.14（libpython 静态链接 + pyhome stdlib）
 /// 启动即 bootstrap；执行走串行队列（CPython 非线程安全调用）
 final class PyEngine {
     static let shared = PyEngine()
@@ -43,7 +43,7 @@ final class PyEngine {
     func run(code: String, completion: @escaping (RunResult) -> Void) {
         let start = Date()
         guard ready else {
-            let msg = "[PocketPy] Python 引擎未就绪（当前构建未携带 pyhome；v0.2 经 CI 交叉编译 CPython 3.13 后此处真跑代码）。\n\n代码预览：\n\(String(code.prefix(400)))"
+            let msg = "[PocketPy] Python 引擎未就绪（当前构建未携带 pyhome；v0.2 经 CI 交叉编译 CPython 3.14 后此处真跑代码）。\n\n代码预览：\n\(String(code.prefix(400)))"
             DispatchQueue.main.async {
                 completion(RunResult(output: msg, success: false, durationMs: 0))
             }
