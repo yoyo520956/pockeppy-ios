@@ -38,6 +38,11 @@ jobs:
           exec clang -E -target aarch64-apple-ios16.0 -isysroot "$IOS_SDK" "$@"
           WRAPPER
           chmod +x ./arm64-apple-ios-cpp
+          cat > ./arm64-apple-ios-ar <<'WRAP2'
+          #!/bin/sh
+          exec ar --target aarch64-apple-ios "$@"
+          WRAP2
+          chmod +x ./arm64-apple-ios-ar
           export PATH="$PWD:$PATH"
           BUILD_PY=$(command -v python3 || command -v python3.14 || command -v python3.13)
           ./configure --host=aarch64-apple-ios16.0 --build=arm64-apple-darwin \
