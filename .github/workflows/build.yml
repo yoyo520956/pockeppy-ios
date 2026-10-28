@@ -31,12 +31,10 @@ jobs:
           export CC="clang -target aarch64-apple-ios16.0 -isysroot $SDK"
           export CFLAGS="-target aarch64-apple-ios16.0 -isysroot $SDK -arch arm64"
           export LDFLAGS="-target aarch64-apple-ios16.0 -isysroot $SDK -arch arm64"
-          ./configure --host=aarch64-apple-ios16.0 \
-            --with-sysroot="$SDK" \
-            --enable-shared=no --enable-static \
-            --with-openssl=no --with-readline=no --with-lzma=no \
-            --with-tcltk=no --with-uuid=no --with-libnsl=no --with-cxx=no \
-            > /dev/null
+          ./configure --host=aarch64-apple-ios16.0 --build=arm64-apple-darwin \
+            --enable-shared=no --with-openssl=no --with-readline=no \
+            > configure.log 2>&1 || { tail -30 configure.log; exit 1; }
+          grep -q "platform aarch64-apple-ios" Makefile || tail -20 Makefile | head -5
           make -j4 install-embed DESTDIR="$GITHUB_WORKSPACE/out" > build.log 2>&1 || (tail -40 build.log; exit 1)
 
       - name: 收集嵌入件
