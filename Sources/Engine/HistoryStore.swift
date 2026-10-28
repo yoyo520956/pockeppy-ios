@@ -28,6 +28,13 @@ final class HistoryStore {
         }
     }
 
+    func save(_ records: [RunRecord]) {
+        queue.async {
+            let data = (try? JSONEncoder().encode(records)) ?? Data()
+            try? data.write(to: self.url, options: .atomic)
+        }
+    }
+
     func clear() {
         queue.async { try? FileManager.default.removeItem(at: self.url) }
     }
